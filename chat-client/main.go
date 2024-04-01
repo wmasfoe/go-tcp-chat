@@ -20,7 +20,7 @@ func readFromServer(conn net.Conn) {
 			return
 		}
 
-		fmt.Printf("%v 给你发了一条消息: %v \n", remoteIp, string(buf[:n]))
+		fmt.Printf("%v 给你发了一条私聊: %v \n", remoteIp, string(buf[:n]))
 	}
 }
 

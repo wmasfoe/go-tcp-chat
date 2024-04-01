@@ -64,6 +64,7 @@ func progress(conn net.Conn, ipMap *IPAddrMap) {
 }
 
 func main() {
+
 	listen, err := net.Listen("tcp", "0.0.0.0:8080")
 
 	ipAndConnMap := make(IPAddrMap)
