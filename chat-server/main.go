@@ -3,6 +3,7 @@ package main
 import (
 	"chat-server/constant"
 	"chat-server/log"
+	"fmt"
 	"net"
 	"regexp"
 	"strings"
@@ -10,20 +11,33 @@ import (
 
 type IPAddrMap = map[string]net.Conn
 
+// 通知所有在线用户的方法
+func notifyAllUser(ipMap *IPAddrMap, msg string) {
+	for _, v := range *ipMap {
+		_, err := v.Write([]byte(msg))
+		if err != nil {
+			log.Logger.Error("发送全局消息失败", err.Error())
+		}
+	}
+}
+
 func progress(conn net.Conn, ipMap *IPAddrMap) {
 
-	connIp := conn.RemoteAddr().String()
+	remoteIp := conn.RemoteAddr().String()
 
 	defer func() {
-		log.Logger.Info(connIp, "已经下线")
+		//在系统记录
+		log.Logger.Info(remoteIp, "已经下线")
+		//通知在线用户
+		notifyAllUser(ipMap, log.Logger.UserExitStr(remoteIp))
 		// 连接退出时，从ip映射表中删除对应ip
-		delete(*ipMap, connIp)
+		delete(*ipMap, remoteIp)
 		conn.Close()
 	}()
 
 	for {
 		//读取客户端输入的内容
-		msgBuf := make([]byte, 1024)
+		msgBuf := make([]byte, 1024*1024)
 		readByteCount, err := conn.Read(msgBuf)
 		if err != nil {
 			log.Logger.Error("客户端连接发生异常", err.Error())
@@ -53,13 +67,16 @@ func progress(conn net.Conn, ipMap *IPAddrMap) {
 			//给对应的ip发送消息
 			_, err := optConn.Write([]byte(sendMsg))
 			if err != nil {
-				log.Logger.Warn("发送消息失败", err.Error())
-				return
+				log.Logger.Error("发送消息失败", err.Error())
 			}
 		} else {
-			// 对消息做处理
-			log.Logger.GlobalLog(connIp, msg)
+			// 所有用户都能收到的消息
+			// 遍历当前在线的 connect
+			usingMsg := log.Logger.GlobalLogStr(remoteIp, trimmedMsg)
+			notifyAllUser(ipMap, usingMsg)
 		}
+		// 任何消息都在server系统做记录
+		log.Logger.Info(fmt.Sprintf("%v 说 %v", remoteIp, msg))
 	}
 }
 
@@ -91,6 +108,7 @@ func main() {
 
 		remoteAddrStr := conn.RemoteAddr().String()
 		log.Logger.NewUser(remoteAddrStr)
+		notifyAllUser(&ipAndConnMap, log.Logger.NewUserStr(remoteAddrStr))
 
 		//保存用户的 ip 和 connect 实例
 		ipAndConnMap[remoteAddrStr] = conn
